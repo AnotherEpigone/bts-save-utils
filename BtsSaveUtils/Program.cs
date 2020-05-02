@@ -1,8 +1,7 @@
-﻿using ICSharpCode.SharpZipLib;
-using ICSharpCode.SharpZipLib.Zip.Compression.Streams;
+﻿using BtsSaveUtils.CliOptions;
+using CommandLine;
 using System;
-using System.IO;
-using System.Text;
+using System.Collections.Generic;
 
 namespace BtsSaveUtils
 {
@@ -12,47 +11,22 @@ namespace BtsSaveUtils
         {
             if (args.Length < 2)
             {
-                Console.WriteLine("usage: btssaveutils [input_path] [output_path]");
+                Console.WriteLine("Usage: btssaveutils [input_path] [output_path]");
                 return;
             }
 
-            var inPath = args[0];
-            string inFileString;
-            using (var inFile = File.OpenRead(inPath))
-            using (var reader = new StreamReader(inFile))
-            {
-                if (inFile.Length > 1024 * 1024 * 1024)
-                {
-                    Console.WriteLine("Failed: That's way too big to be a BTS save.");
-                    return;
-                }
+            Parser.Default.ParseArguments<DumpOptions, CompressOptions>(args)
+                .WithParsed<DumpOptions>(RunWithDumpOptions)
+                .WithParsed<CompressOptions>(RunWithCompressOptions)
+                .WithNotParsed(RunWithFailedParse);
+        }
 
-                inFileString = reader.ReadToEnd();
+        static void RunWithDumpOptions(DumpOptions options) => CompressedSection.Decompress(options.InputFile, options.OutputFile);
 
-                var zlibHeader = Encoding.UTF8.GetString(new byte[] { 0x78, 0x9C });
-                var deflateIndex = inFileString.IndexOf(zlibHeader);
-                if (deflateIndex < 0)
-                {
-                    Console.WriteLine("Failed: No compressed data found.");
-                    return;
-                }
+        static void RunWithCompressOptions(CompressOptions options) => CompressedSection.Compress(options.InputFile, options.OutputFile);
 
-                inFile.Seek(deflateIndex, SeekOrigin.Begin);
-
-                var outPath = args[1];
-                using (var outFile = File.Create(outPath))
-                using (var inflateStream = new InflaterInputStream(inFile))
-                {
-                    try
-                    {
-                        inflateStream.CopyTo(outFile);
-                    }
-                    catch (SharpZipBaseException)
-                    {
-                        // it's going to throw once it gets to the end of the compressed data
-                    }
-                }
-            }
+        static void RunWithFailedParse(IEnumerable<Error> errors)
+        {
         }
     }
 }
